@@ -18,14 +18,20 @@ import (
 	"strings"
 	"time"
 )
-
+	// freehand-api.local.invisionapp.com
 const (
+	imgPath      = "./image_list"
+	urlv6        = "http://freehand-api.local.invisionapp.com/api/documents/create-from-artboard"
+	urlv6convert = "http://freehand-api.local.invisionapp.com/api/documents/info"
+	jwtToken     = "9CQl1FPPwyASuEbbeLYEJhmNt7kgwK8T"
+	adminToken   = "abc"
 
 )
+//https://freehand-api.local.invision.works:8843
 
 func main() {
 	app := newApp()
-	app.createDocumentList(100)
+	app.createDocumentList(1)
 	log.Infof("[%s]", strings.Join(app.documentSlugs, ","))
 	log.Infof("[%s]", strings.Join(app.documentIDs, ","))
 }
@@ -118,7 +124,7 @@ func (a *app) createNewDocument(index int) *ArtboardData {
 
 	offsetX := float64(rand.Intn(256))
 	offsetY := float64(rand.Intn(256))
-	images := make([]artboardScreen, rand.Intn(10))
+	images := make([]artboardScreen, 1)
 
 	for i := range images {
 		imageID := CreateUniqueImageID()
@@ -154,9 +160,17 @@ func (a *app) createDocumentList(amount int) []*ArtboardData {
 		log.Info(string(body))
 		resp := a.makeRequestToV6(urlv6, bytes.NewBuffer(body))
 		log.Infof("Amount of returned images: %d", len(resp.Images))
+		j:=0
 		for name, image := range resp.Images {
+			j++
 			log.Infof("fileIndex: %s", strings.Split(name, "#")[1])
-			a.makeRequestToS3D(image.URL, strings.Split(name, "#")[1])
+			if j == 3 || j ==  2 {
+				continue
+			} else {
+
+				a.makeRequestToS3D(image.URL, strings.Split(name, "#")[1])
+				log.Info("pushed", j)
+			}
 		}
 		a.convertSlugToID(resp.DocumentID, urlv6convert)
 		log.Infof("slug: %s", resp.DocumentID)
@@ -187,11 +201,12 @@ func (a *app) convertSlugToID(slug string, url string) {
 	if err != nil {
 		log.Fatal("can't read body of v6 response", err.Error())
 	}
+	log.Warn("response from v6 api",string(bodyV6 ))
 	err = json.Unmarshal(bodyV6, &responseV6Convert)
 	if err != nil {
 		log.Fatal("can't unmarshal v6 response", err.Error())
 	}
-	a.documentSlugs = append(a.documentSlugs, slug)
+	a.documentSlugs = append(a.documentSlugs, "\"" +slug+"\"")
 	a.documentIDs = append(a.documentIDs, strconv.Itoa(responseV6Convert["document"].ID))
 }
 
@@ -211,6 +226,7 @@ func (a *app) makeRequestToV6(url string, body io.Reader) *Response {
 	if err != nil {
 		log.Fatal("can't read body of v6 response", err.Error())
 	}
+	log.Warn("response", string(bodyV6))
 	err = json.Unmarshal(bodyV6, &responseV6)
 	if err != nil {
 		log.Fatal("can't unmarshal v6 response", err.Error())
